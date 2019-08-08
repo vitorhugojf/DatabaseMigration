@@ -48,6 +48,33 @@ namespace DatabaseMigration.MySql
             return linhas;
         }
 
+        public static List<string> SelectAllTablesToInsertInMySqlIntoMT(string connectionString, string schemaToLoad, string schemaToInsert)
+        {
+            List<string> linhas = new List<string>();
+            HashSet<string> mainTables = new HashSet<string>(new string[] { "Image", "Company", "AspNetRoles",
+                "CellUnit", "AspNetUsers", "Objective", "KeyResult" });
+            HashSet<string> tables = GetAllTableName(connectionString, schemaToLoad);
+
+            foreach (var table in mainTables)
+            {
+                HashSet<IDictionary<string, object>> objetos = SelectObjectsFromTable(connectionString, schemaToLoad, table);
+                foreach (var objeto in objetos)
+                {
+                    linhas.Add(InsertIntoToMT(objeto, schemaToInsert, table));
+                }
+            }
+
+            foreach (var table in tables)
+            {
+                HashSet<IDictionary<string, object>> objetos = SelectObjectsFromTable(connectionString, schemaToLoad, table);
+                foreach (var objeto in objetos)
+                {
+                    linhas.Add(InsertIntoToMT(objeto, schemaToInsert, table));
+                }
+            }
+            return linhas;
+        }
+
         public static List<string> SelectTableToInsertInMySql(string connectionString, string schemaToLoad, string schemaToInsert, string table)
         {
             List<string> linhas = new List<string>();
@@ -162,10 +189,8 @@ namespace DatabaseMigration.MySql
 
             for (int j = 0; j < objeto.Count; j++)
             {
-                string[] format = new string[] { "dd/MM/yyyy HH:mm:ss" };
-                DateTime datetime;
 
-                if (objeto.Values.ElementAt(j).ToString() == "")
+                if (objeto.Values.ElementAt(j).ToString() == string.Empty)
                 {
                     linha += "NULL";
                 }
@@ -173,14 +198,14 @@ namespace DatabaseMigration.MySql
                 {
                     linha += $"{objeto.Values.ElementAt(j).ToString()}";
                 }
-                else if (DateTime.TryParseExact(objeto.Values.ElementAt(j).ToString(), format,
-                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.NoCurrentDateDefault, out datetime))
+                else if (DateTime.TryParse(objeto.Values.ElementAt(j).ToString(), out DateTime datetime))
                 {
-                    linha += $"'{datetime.Year}-{datetime.Month}-{datetime.Day} 00:00:00'";
+                    linha += $"'{datetime.Year}-{String.Format("{0:00}", datetime.Month)}-{String.Format("{0:00}", datetime.Day)} " +
+                        $"{String.Format("{0:00}", datetime.Hour)}:{String.Format("{0:00}", datetime.Minute)}:{String.Format("{0:00}", datetime.Second)}'";
                 }
                 else
                 {
-                    linha += $"'{objeto.Values.ElementAt(j).ToString().Replace(',', '.')}'";
+                    linha += $"'{objeto.Values.ElementAt(j).ToString().Replace(",", ".").Replace("\'", string.Empty).Replace("`", string.Empty)}'";
                 }
                 if (j < objeto.Count - 1)
                     linha += ",";
@@ -189,6 +214,120 @@ namespace DatabaseMigration.MySql
 
             return linha;
         }
+
+        private static string InsertIntoToMT(IDictionary<string, object> objeto, string schema, string table)
+        {
+            if (table.Equals("AspNetRoles") || table.Equals("AspNetUserRoles"))
+            {
+                return string.Empty;
+            }
+
+            string linha = $"INSERT INTO `{schema}`.`{table}` (";
+
+            for (int i = 0; i < objeto.Count; i++)
+            {
+                linha += $"`{objeto.Keys.ElementAt(i).ToString()}`";
+                if (i < objeto.Count - 1)
+                    linha += ",";
+            }if (table.Equals("AspNetUsers"))
+            {
+                linha += ",`CompanyInUseId` ,`Active` ,`ProfileType` , `Language`) VALUES (";
+            }
+            else if (table.Equals("OKR"))
+            {
+                linha += ",`CompanyId`) VALUES (";
+            }
+            else if (table.Equals("HistoryKeyResuls"))
+            {
+                linha += ",`Rating`, `Difficulty`) VALUES (";
+            }
+            else
+            {
+                linha += ") VALUES (";
+            }
+
+            for (int j = 0; j < objeto.Count; j++)
+            {
+                if (table.Equals("AspNetUsers"))
+                {
+                    if (j == 1 | j == 14 || j == 17)
+                    {
+                        linha += $"'{objeto.Values.ElementAt(14).ToString()}@latam.stefanini.com'";
+                    }
+                    else if (j == 2 || j == 3)
+                    {
+                        linha += $"'{objeto.Values.ElementAt(14).ToString().ToUpper()}@LATAM.STEFANINI.COM'";
+                    }
+                    else if (objeto.Values.ElementAt(j).ToString() == string.Empty)
+                    {
+                        linha += "NULL";
+                    }
+                    else if (objeto.Values.ElementAt(j).ToString().Equals("0") || objeto.Values.ElementAt(j).ToString().Equals("1"))
+                    {
+                        linha += $"{objeto.Values.ElementAt(j).ToString()}";
+                    }
+                    else if (DateTime.TryParse(objeto.Values.ElementAt(j).ToString(), out DateTime datetime))
+                    {
+                        linha += $"'{datetime.Year}-{String.Format("{0:00}", datetime.Month)}-{String.Format("{0:00}", datetime.Day)} " +
+                            $"{String.Format("{0:00}", datetime.Hour)}:{String.Format("{0:00}", datetime.Minute)}:{String.Format("{0:00}", datetime.Second)}'";
+                    }
+                    else
+                    {
+                        linha += $"'{objeto.Values.ElementAt(j).ToString().Replace(",", ".").Replace("\'", string.Empty).Replace("`", string.Empty)}'";
+                    }
+                    if (j < objeto.Count - 1)
+                        linha += ",";
+                }
+                else
+                {
+                    if (objeto.Values.ElementAt(j).ToString() == string.Empty)
+                    {
+                        linha += "NULL";
+                    }
+                    else if (objeto.Values.ElementAt(j).ToString().Equals("0") || objeto.Values.ElementAt(j).ToString().Equals("1"))
+                    {
+                        linha += $"{objeto.Values.ElementAt(j).ToString()}";
+                    }
+                    else if (DateTime.TryParse(objeto.Values.ElementAt(j).ToString(), out DateTime datetime))
+                    {
+                        linha += $"'{datetime.Year}-{String.Format("{0:00}", datetime.Month)}-{String.Format("{0:00}", datetime.Day)} " +
+                            $"{String.Format("{0:00}", datetime.Hour)}:{String.Format("{0:00}", datetime.Minute)}:{String.Format("{0:00}", datetime.Second)}'";
+                    }
+                    else
+                    {
+                        linha += $"'{objeto.Values.ElementAt(j).ToString().Replace(",", ".").Replace("\'", string.Empty).Replace("`", string.Empty)}'";
+                    }
+                    if (j < objeto.Count - 1)
+                        linha += ",";
+                }
+            }
+            if (table.Equals("AspNetUsers"))
+            {
+                linha += ",'81466b9c-53fd-403f-bcb0-691ee6fe2a6d', 1, 1, 'pt_BR'); ";
+
+                linha += $"INSERT INTO `{schema}`.`CompanyUser` (`Id`,`Active`,`CompanyId`,`UserId`) VALUES ('{Guid.NewGuid()}', 1, " +
+                    $"'81466b9c-53fd-403f-bcb0-691ee6fe2a6d', '{objeto.Values.ElementAt(0)}'); ";
+
+                linha += $"INSERT INTO `{schema}`.`AspNetUserRoles` (`UserId`, `RoleId`) VALUES ('{objeto.Values.ElementAt(0)}', '08d69c0d-ecde-a6e1-0223-c46bb5ab5940');";
+            }
+            else if (table.Equals("OKR"))
+            {
+                linha += ",'81466b9c-53fd-403f-bcb0-691ee6fe2a6d');";
+            }
+            else if (table.Equals("HistoryKeyResuls"))
+            {
+                linha += ", 0, 0);";
+            }
+            else
+            {
+                linha += ");";
+            }
+
+            return linha;
+        }
+
+
+
 
         private static bool IsMainTable(string tableName)
         {
